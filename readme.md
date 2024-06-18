@@ -36,11 +36,11 @@ To analyze IP addresses, URLs, or hash files, run the script with appropriate ar
    - Hash:
       python threatanalyzer.py -hf hash.txt
 
--i: Specify a file containing IP addresses.
--u: Specify a file containing URLs. *url must contain domain only, ex: www.google.com or google.com
--hf: Specify a file containing hash files.
--t: Set the threshold for considering an item malicious (default: 3).
--o: Specify the name for the output Excel file (without extension).
+- -i: Specify a file containing IP addresses.
+- -u: Specify a file containing URLs. *url must contain domain only, ex: www.google.com or google.com
+- -hf: Specify a file containing hash files.
+- -t: Set the threshold for considering an item malicious (default: 3).
+- -o: Specify the name for the output Excel file (without extension).
 
 ## Output
 The tool generates an Excel report (output_report.xlsx) containing detailed analysis results, including:
