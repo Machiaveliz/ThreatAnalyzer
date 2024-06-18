@@ -19,13 +19,17 @@ ThreatAnalyzer is a Python-based tool designed to retrieve and analyze informati
 ## Installation
 
 1. Clone the repository:
+```
    git clone https://github.com/Machiaveliz/ThreatAnalyzer.git
    cd ThreatAnalyzer
+```
 
-2. Install dependencies
-pip install -r requirements.txt
+3. Install dependencies
+```
+   pip install -r requirements.txt
+```
 
-3. Obtain a VirusTotal API key from VirusTotal and update it in the main.py file.
+5. Obtain a VirusTotal API key from VirusTotal and update it in the main.py file.
 
 ## Usage
 To analyze IP addresses, URLs, or hash files, run the script with appropriate arguments:
@@ -37,11 +41,13 @@ To analyze IP addresses, URLs, or hash files, run the script with appropriate ar
       python threatanalyzer.py -hf hash.txt
 
 ## Parameter
-- -i: Specify a file containing IP addresses.
-- -u: Specify a file containing URLs. *url must contain domain only, ex: www.google.com or google.com
-- -hf: Specify a file containing hash files.
-- -t: Set the threshold for considering an item malicious (default: 3).
-- -o: Specify the name for the output Excel file (without extension).
+```
+-i: Specify a file containing IP addresses.
+-u: Specify a file containing URLs. *url must contain domain only, ex: www.google.com or google.com
+-hf: Specify a file containing hash files.
+-t: Set the threshold for considering an item malicious (default: 3).
+-o: Specify the name for the output Excel file (without extension).
+```
 
 ## Output
 The tool generates an Excel report (output_report.xlsx) containing detailed analysis results, including:
