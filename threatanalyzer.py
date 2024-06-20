@@ -216,7 +216,7 @@ def main():
     made by Angger, David, Richie, -h for help
     """)
 
-    api_key = "58db8b60b692dd9e82444c4a243e674fbdffbdefbecc6de3f3bc7b6d754e8b4e"
+    api_key = "590bcb7924d6988859a301abfdcbc63c9d3ad6fe01ef195c9b54a7e8d37950e3"
 
     results = [None] * total_data
     
@@ -318,8 +318,8 @@ def main():
         category_df.to_excel(writer, index=False, sheet_name='Grafik Threat Label')
         status_df.to_excel(writer, index=False, sheet_name='Grafik Status')
 
-        add_chart_to_sheet(writer.sheets['Grafik Threat Label'], 'Threat Label', 'Jumlah Hash', 'K2', 'Jumlah URL Berdasarkan Kategori')
-        add_chart_to_sheet(writer.sheets['Grafik Status'], 'Status', 'Jumlah Hash', 'K2', 'Jumlah URL Berdasarkan Status')
+        add_chart_to_sheet(writer.sheets['Grafik Threat Label'], 'Threat Label', 'Jumlah Hash', 'K2', 'Jumlah Hash Berdasarkan Kategori')
+        add_chart_to_sheet(writer.sheets['Grafik Status'], 'Status', 'Jumlah Hash', 'K2', 'Jumlah Hash Berdasarkan Status')
 
         worksheet = writer.sheets['Grafik Threat Label']
         worksheet = writer.sheets['Grafik Status']
