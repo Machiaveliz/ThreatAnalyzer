@@ -8,6 +8,7 @@ import base64
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 from datetime import datetime, timedelta
+index_key = 0
 
 def extract_whois_info(whois_data, patterns):
     for pattern in patterns:
@@ -30,146 +31,269 @@ def print_progress_bar(iteration, total, start_time, length=50, fill='█'):
     if iteration == total:
         print()
 
-def fetch_ip_data(ip, index, total_ips, start_time, threshold, results, api_key):
-    url = f"https://www.virustotal.com/api/v3/ip_addresses/{ip}"
-    headers = {
-        "accept": "application/json",
-        "x-apikey": api_key
-    }
-    response = requests.get(url, headers=headers)
-    parse_json = json.loads(response.text)
-
+def fetch_ip_data(ip, index, total_ips, start_time, threshold, results, api_keys):
     result = {'IP': ip}
-
-    try:
-        malicious_count = parse_json['data']['attributes']['last_analysis_stats']['malicious']
-    except KeyError:
-        malicious_count = 0
-
-    result['Status'] = "Malicious" if malicious_count > threshold else "Not Malicious"
-    result['Malicious Score'] = malicious_count
-    try:
-        result['ISP'] = parse_json['data']['attributes']['as_owner']
-    except KeyError:
-        result['ISP'] = "Not Found!"
-
-    try:
-        result['Negara'] = parse_json['data']['attributes']['country']
-    except KeyError:
-        result['Negara'] = "Not Found!"
-
-    try:
-        result['Benua'] = parse_json['data']['attributes']['continent']
-    except KeyError:
-        result['Benua'] = "Not Found!"
-
-    try:
-        whois_data = parse_json['data']['attributes']['whois']
-    except KeyError:
-        whois_data = "Not Found!"
-
-    result['Alamat'] = extract_whois_info(whois_data, [r"address:\s*(.*)"])
-    result['Org'] = extract_whois_info(whois_data, [r"org-name:\s*(.*)", r"org:\s*(.*)", r"organisation:\s*(.*)", r"netname:\s*(.*)"])
-    result['Email'] = extract_whois_info(whois_data, [r"e-mail:\s*(.*)", r"abuse-mailbox:\s*(.*)"])
-    result['Phone'] = extract_whois_info(whois_data, [r"phone:\s*(.*)"])
-
+    max_api_keys = len(api_keys)
+    global index_key
     
+    while True:
+        url = f"https://www.virustotal.com/api/v3/ip_addresses/{ip}"
+        headers = {
+            "accept": "application/json",
+            "x-apikey": api_keys[index_key]
+        }
+        response = requests.get(url, headers=headers)
+        parse_json = json.loads(response.text)
 
-    results[index] = result
-    print_progress_bar(index + 1, total_ips, start_time)
-
-def fetch_url_data(url, index, total_urls, start_time, threshold, results, api_key):
-    encoded_url = requests.utils.quote(url, safe='')
-    baseline = "https://www.virustotal.com/api/v3/urls"
-    payload = { "url": encoded_url }
-    headers = {
-	    "accept": "application/json",
-	    "x-apikey": api_key,
-		"content-type": "application/x-www-form-urlencoded"
-	}
-    response = requests.post(baseline, data=payload, headers=headers)
-    parse_json = json.loads(response.text)
-    analysis_id=parse_json['data']['links']['self']
-    
-    headers = {
-        "accept": "application/json",
-        "x-apikey": api_key
-    }
-    response2 = requests.get(analysis_id, headers=headers)
-    parse_json2 = json.loads(response2.text)
-    item_link = parse_json2['data']['links']['item']
-    response3 = requests.get(item_link, headers=headers)
-    parse_json3 = json.loads(response3.text)
-    result = {'URL': url}
-    try:
-        result['Kategori'] = parse_json3['data']['attributes']['categories']['Sophos']
-    except KeyError:
-        result['Kategori'] = "Not Found!"
-
-    try:
-        malicious_count = parse_json2['data']['attributes']['stats']['malicious']
-    except KeyError:
-        malicious_count = 0
-
-    result['Status'] = "Malicious" if malicious_count > threshold else "Not Malicious"
-    result['Malicious Score'] = malicious_count
-    
-
-    results[index] = result
-    print_progress_bar(index + 1, total_urls, start_time)
-
-def fetch_hash_file_data(hash, index, total_hashes, start_time, threshold, results, api_key):
-    url = f"https://www.virustotal.com/api/v3/files/{hash}"
-    headers = {
-        "accept": "application/json",
-        "x-apikey": api_key
-    }
-    response = requests.get(url, headers=headers)
-    parse_json = json.loads(response.text)
-
-    result = {'Hash': hash}
-    try:
-        attributes = parse_json['data']['attributes']
-    except KeyError:
-        attributes = {}
-    result['File_Name'] = attributes.get('names', ['Not Found!'])[0]
-    malicious_count = attributes.get('last_analysis_stats', {}).get('malicious', 0)
-    result['Status'] = "Malicious" if malicious_count > threshold else "Not Malicious"
-    result['Malicious_Score'] = malicious_count
-    result['Threat Label'] = attributes.get('popular_threat_classification',{}).get('suggested_threat_label', ['Not Found!'])
-
-    endpoints = {
-        'Dropped_Files': 'dropped_files',
-        'Contacted_Ips': 'contacted_ips',
-        'Contacted_Urls': 'contacted_urls',
-        'Parents': 'execution_parents'
-    }
-
-    for key, endpoint in endpoints.items():
-        endpoint_url = f"{url}/{endpoint}?limit=1"
         try:
-            endpoint_response = requests.get(endpoint_url, headers=headers)
-            endpoint_data = json.loads(endpoint_response.text).get('data', [])
-            if endpoint_data and isinstance(endpoint_data, list):
-                first_item = endpoint_data[0]
-                if key == 'Dropped_Files':
-                    result[key] = first_item.get('attributes', {}).get('names', ['Not Found!'])[0]
-                elif key == 'Contacted_Ips':
-                    result[key] = first_item.get('id', 'Not Found!')
-                    result['Contacted_Ips_Score'] = first_item.get('attributes', {}).get('last_analysis_stats', {}).get('malicious', 0)
-                elif key == 'Contacted_Urls':
-                    result[key] = first_item.get('attributes', {}).get('url', 'Not Found!')
-                    result['Contacted_Urls_Score'] = first_item.get('attributes', {}).get('last_analysis_stats', {}).get('malicious', 0)
-                elif key == 'Parents':
-                    result[key] = first_item.get('attributes', {}).get('names', ['Not Found!'])[0]
+            error = parse_json['error']['code']
+        except KeyError:
+            error = "Lanjut"
+        if error == "QuotaExceededError":
+            if index_key < max_api_keys - 1:
+                print(f"API key {index_key+1} hit rate limit. Switching to next key.")
+                index_key += 1
+                continue
             else:
-                result[key] = "Not Found!"
-        except requests.RequestException:
-            result[key] = "Not Found!"
+                print("All API keys have been exhausted.")
+                result['Status'] = "Not Found!"
+                result['Malicious Score'] = "Not Found!"
+                results[index] = result
+                print_progress_bar(index + 1, total_ips, start_time)
+                return
+        else:
+            try:
+                malicious_count = parse_json['data']['attributes']['last_analysis_stats']['malicious']
+            except KeyError:
+                malicious_count = 0
 
-    results[index] = result
-    print_progress_bar(index + 1, total_hashes, start_time)
+            result['Status'] = "Malicious" if malicious_count > threshold else "Not Malicious"
+            result['Malicious Score'] = malicious_count
+            try:
+                result['ISP'] = parse_json['data']['attributes']['as_owner']
+            except KeyError:
+                result['ISP'] = "Not Found!"
 
+            try:
+                result['Negara'] = parse_json['data']['attributes']['country']
+            except KeyError:
+                result['Negara'] = "Not Found!"
+
+            try:
+                result['Benua'] = parse_json['data']['attributes']['continent']
+            except KeyError:
+                result['Benua'] = "Not Found!"
+
+            try:
+                whois_data = parse_json['data']['attributes']['whois']
+            except KeyError:
+                whois_data = "Not Found!"
+
+            result['Alamat'] = extract_whois_info(whois_data, [r"address:\s*(.*)"])
+            result['Org'] = extract_whois_info(whois_data, [r"org-name:\s*(.*)", r"org:\s*(.*)", r"organisation:\s*(.*)", r"netname:\s*(.*)"])
+            result['Email'] = extract_whois_info(whois_data, [r"e-mail:\s*(.*)", r"abuse-mailbox:\s*(.*)"])
+            result['Phone'] = extract_whois_info(whois_data, [r"phone:\s*(.*)"])
+
+            results[index] = result
+            print_progress_bar(index + 1, total_ips, start_time)
+            return
+
+def fetch_url_data(url, index, total_urls, start_time, threshold, results, api_keys):
+    result = {'URL': url}
+    max_api_keys = len(api_keys)
+    global index_key
+    while True:
+        baseline = "https://www.virustotal.com/api/v3/urls"
+        payload = {"url": url}
+        headers = {
+            "accept": "application/json",
+            "x-apikey": api_keys[index_key],
+            "content-type": "application/x-www-form-urlencoded"
+        }
+        response = requests.post(baseline, data=payload, headers=headers)
+        parse_json = json.loads(response.text)
+
+        try:
+            error=parse_json['error']['code']
+        except:
+            error="Lanjut"
+        if(error=="QuotaExceededError"):
+            if index_key < max_api_keys - 1:
+                print(f"API key {index_key+1} hit rate limit. Switching to next key.")
+                
+                index_key += 1
+                continue
+            else:
+                print("All API keys have been exhausted.")
+                result['Kategori'] = "Not Found!"
+                result['Status'] = "Not Found!"
+                result['Malicious Score'] = "Not Found!"
+                results[index] = result
+                print_progress_bar(index + 1, total_urls, start_time)
+                return
+        else:
+            try:
+                analysis_id = parse_json['data']['links']['self']
+            except KeyError:
+                error = parse_json.get('error', {}).get('code')
+                print(f"Error in response for URL {url}: {parse_json}")
+                if error:
+                    print(f"Error code: {error}")
+                result['Kategori'] = "Not Found!"
+                result['Status'] = "Not Found!"
+                result['Malicious Score'] = "Not Found!"
+                results[index] = result
+                print_progress_bar(index + 1, total_urls, start_time)
+                return
+            
+            headers = {
+                "accept": "application/json",
+                "x-apikey": api_keys[index_key]
+            }
+            response2 = requests.get(analysis_id, headers=headers)
+            parse_json2 = json.loads(response2.text)
+            try:
+                error2=parse_json2['error']['code']
+            except:
+                error2="Lanjut"
+            if(error2=="QuotaExceededError"):
+                if index_key < max_api_keys - 1:
+                    print(f"API key {index_key+1} hit rate limit during analysis fetch. Switching to next key.")
+                    index_key += 1
+                    continue
+                else:
+                    print("All API keys have been exhausted.")
+                    result['Kategori'] = "Not Found!"
+                    result['Status'] = "Not Found!"
+                    result['Malicious Score'] = "Not Found!"
+                    results[index] = result
+                    print_progress_bar(index + 1, total_urls, start_time)
+                    return
+            else:
+                try:
+                    item_link = parse_json2['data']['links']['item']
+                except KeyError:
+                    print(f"Item link not found for URL {url}: {parse_json2}")
+                    result['Kategori'] = "Not Found!"
+                    result['Status'] = "Not Found!"
+                    result['Malicious Score'] = "Not Found!"
+                    results[index] = result
+                    print_progress_bar(index + 1, total_urls, start_time)
+                    return
+
+                response3 = requests.get(item_link, headers=headers)
+                parse_json3 = json.loads(response3.text)
+                try:
+                    error3=parse_json3['error']['code']
+                except:
+                    error3="Lanjut"
+                if(error3=="QuotaExceededError"):
+                    if index_key < max_api_keys - 1:
+                        print(f"API key {index_key+1} hit rate limit during item fetch. Switching to next key.")
+                        index_key += 1
+                        continue
+                    else:
+                        print("All API keys have been exhausted.")
+                        result['Kategori'] = "Not Found!"
+                        result['Status'] = "Not Found!"
+                        result['Malicious Score'] = "Not Found!"
+                        results[index] = result
+                        print_progress_bar(index + 1, total_urls, start_time)
+                        return
+                else:
+                    try:
+                        result['Kategori'] = parse_json3['data']['attributes']['categories'].get('Sophos', "Not Found!")
+                    except KeyError:
+                        result['Kategori'] = "Not Found!"
+                    
+                    try:
+                        malicious_count = parse_json2['data']['attributes']['stats']['malicious']
+                    except KeyError:
+                        malicious_count = 0
+                    
+                    result['Status'] = "Malicious" if malicious_count > threshold else "Not Malicious"
+                    result['Malicious Score'] = malicious_count
+
+                    results[index] = result
+                    print_progress_bar(index + 1, total_urls, start_time)
+                    return
+
+
+def fetch_hash_file_data(hash, index, total_hashes, start_time, threshold, results, api_keys):
+    result = {'Hash': hash}
+    max_api_keys = len(api_keys)
+    global index_key
+    
+    while True:
+        url = f"https://www.virustotal.com/api/v3/files/{hash}"
+        headers = {
+            "accept": "application/json",
+            "x-apikey": api_keys[index_key]
+        }
+        response = requests.get(url, headers=headers)
+        parse_json = json.loads(response.text)
+
+        try:
+            error = parse_json['error']['code']
+        except KeyError:
+            error = "Lanjut"
+        if error == "QuotaExceededError":
+            if index_key < max_api_keys - 1:
+                print(f"API key {index_key+1} hit rate limit. Switching to next key.")
+                index_key += 1
+                continue
+            else:
+                print("All API keys have been exhausted.")
+                result['Status'] = "Not Found!"
+                result['Malicious Score'] = "Not Found!"
+                results[index] = result
+                print_progress_bar(index + 1, total_hashes, start_time)
+                return
+        else:
+            try:
+                attributes = parse_json['data']['attributes']
+            except KeyError:
+                attributes = {}
+            
+            result['File_Name'] = attributes.get('names', ['Not Found!'])[0]
+            malicious_count = attributes.get('last_analysis_stats', {}).get('malicious', 0)
+            result['Status'] = "Malicious" if malicious_count > threshold else "Not Malicious"
+            result['Malicious_Score'] = malicious_count
+            result['Threat Label'] = attributes.get('popular_threat_classification', {}).get('suggested_threat_label', ['Not Found!'])
+
+            endpoints = {
+                'Dropped_Files': 'dropped_files',
+                'Contacted_Ips': 'contacted_ips',
+                'Contacted_Urls': 'contacted_urls',
+                'Parents': 'execution_parents'
+            }
+
+            for key, endpoint in endpoints.items():
+                endpoint_url = f"{url}/{endpoint}?limit=1"
+                try:
+                    endpoint_response = requests.get(endpoint_url, headers=headers)
+                    endpoint_data = json.loads(endpoint_response.text).get('data', [])
+                    if endpoint_data and isinstance(endpoint_data, list):
+                        first_item = endpoint_data[0]
+                        if key == 'Dropped_Files':
+                            result[key] = first_item.get('attributes', {}).get('names', ['Not Found!'])[0] if first_item.get('attributes', {}).get('names', []) else 'Not Found!'
+                        elif key == 'Contacted_Ips':
+                            result[key] = first_item.get('id', 'Not Found!')
+                            result['Contacted_Ips_Score'] = first_item.get('attributes', {}).get('last_analysis_stats', {}).get('malicious', 0)
+                        elif key == 'Contacted_Urls':
+                            result[key] = first_item.get('attributes', {}).get('url', 'Not Found!')
+                            result['Contacted_Urls_Score'] = first_item.get('attributes', {}).get('last_analysis_stats', {}).get('malicious', 0)
+                        elif key == 'Parents':
+                            # print(endpoint_data)
+                            result[key] = first_item.get('attributes', {}).get('names', ['Not Found!'])[0] if first_item.get('attributes', {}).get('names', []) else 'Not Found!'
+                    else:
+                        result[key] = "Not Found!"
+                except requests.RequestException:
+                    result[key] = "Not Found!"
+
+            results[index] = result
+            print_progress_bar(index + 1, total_hashes, start_time)
+            return
 def main():
     parser = argparse.ArgumentParser(description="Retrieve information about IP addresses, URLs, or hash files from VirusTotal API and create an Excel file with the data.")
     parser.add_argument("-i", "--ip", type=str, help="Input file containing IP addresses. (-i ip.txt)")
@@ -182,7 +306,6 @@ def main():
     data_list = []
     data_type = ""
     fetch_data = None
-
     if args.ip:
         with open(args.ip, "r") as file:
             data_list = [line.strip() for line in file]
@@ -216,7 +339,7 @@ def main():
     made by Angger, David, Richie, -h for help
     """)
 
-    api_key = "590bcb7924d6988859a301abfdcbc63c9d3ad6fe01ef195c9b54a7e8d37950e3"
+    api_key = ["5c08f9a5f320de14a52611ab24b2a10d8a9bad7ed65716cd4713cc52b8815fa6","590bcb7924d6988859a301abfdcbc63c9d3ad6fe01ef195c9b54a7e8d37950e3","32e53c63a4ecb19f746e58a90cdc564e17145cd67fe399f132bf5c5a062570f6","99e79d0bffdfbeb3ebd778ff5a7643ca638a0421fc2d9cf8921a634f3e10b583","84e8b2fe0282218e81dd2fe9748333799b24178c064550e17e3392096cb20f11 "]
 
     results = [None] * total_data
     
